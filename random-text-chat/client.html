@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Random Text Chat Demo</title></head>
+<body>
+  <div id="ui">
+    <button id="join">Join Chat</button>
+    <button id="leave" disabled>Leave</button>
+    <div id="status"></div>
+    <div id="chat" style="display:none">
+      <div id="msgs" style="border:1px solid #ccc; height:200px; overflow:auto"></div>
+      <input id="inp" placeholder="Type..." />
+      <button id="send">Send</button>
+    </div>
+  </div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+  const socket = io('http://localhost:3000');
+  let currentRoom = null;
+
+  document.getElementById('join').onclick = () => {
+    // optionally send interests: { interests: ['music','football'] }
+    socket.emit('join', { interests: [] });
+  };
+  document.getElementById('leave').onclick = () => {
+    if (currentRoom) socket.emit('leave', { roomId: currentRoom });
+  };
+
+  socket.on('status', s => {
+    document.getElementById('status').innerText = 'Status: ' + s.state;
+    document.getElementById('leave').disabled = s.state !== 'in_chat';
+    document.getElementById('chat').style.display = s.state === 'in_chat' ? 'block' : 'none';
+  });
+
+  socket.on('matched', ({ roomId }) => {
+    currentRoom = roomId;
+    document.getElementById('status').innerText = 'Matched! room: ' + roomId;
+    document.getElementById('chat').style.display = 'block';
+    document.getElementById('leave').disabled = false;
+    // set state explicitly
+    document.getElementById('status').innerText = 'Status: in_chat';
+  });
+
+  socket.on('message', ({ text }) => {
+    const m = document.createElement('div'); m.innerText = 'Stranger: ' + text;
+    document.getElementById('msgs').appendChild(m);
+  });
+
+  document.getElementById('send').onclick = () => {
+    const text = document.getElementById('inp').value;
+    if (!currentRoom || !text) return;
+    socket.emit('message', { roomId: currentRoom, text });
+    const m = document.createElement('div'); m.innerText = 'You: ' + text;
+    document.getElementById('msgs').appendChild(m);
+    document.getElementById('inp').value = '';
+  };
+
+  socket.on('partner_left', () => {
+    const m = document.createElement('div'); m.innerText = 'System: Partner left';
+    document.getElementById('msgs').appendChild(m);
+    currentRoom = null;
+    document.getElementById('status').innerText = 'Status: waiting';
+    document.getElementById('leave').disabled = true;
+  });
+
+  // initial status
+  socket.on('connect', () => { document.getElementById('status').innerText = 'Connected to server'; });
+</script>
+</body>
+</html>
